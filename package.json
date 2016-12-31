@@ -1,0 +1,28 @@
+{
+  "name": "gulp-cluster-src",
+  "description": "Process files in parallel using node's cluster module",
+  "version": "0.0.0",
+  "main": "index.js",
+  "author": "Bryan Ross <git@rossipedia.com>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=6"
+  },
+  "keywords": [
+    "gulpfriendly",
+    "cluster"
+  ],
+  "dependencies": {
+    "colors": "^1.1.2",
+    "event-stream": "^3.3.4",
+    "glob-stream": "^5.3.5",
+    "gulp": "^3.9.1",
+    "gulp-cli": "^1.2.2",
+    "gulp-debug": "^3.0.0",
+    "gulp-load-plugins": "^1.4.0",
+    "gulp-util": "^3.0.8",
+    "readable-stream": "^2.2.2",
+    "through2": "^2.0.3",
+    "vinyl-fs": "^2.4.4"
+  }
+}
