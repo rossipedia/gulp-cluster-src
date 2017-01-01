@@ -1,7 +1,7 @@
 {
   "name": "gulp-cluster-src",
   "description": "Process files in parallel using node's cluster module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "index.js",
   "author": "Bryan Ross <git@rossipedia.com>",
   "license": "MIT",
