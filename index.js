@@ -16,20 +16,21 @@ const requestFile = () => process.send({
 });
 
 module.exports = function (gulp) {
-    let current_task = null;
 
-    gulp.on('task_start', ({
-        task
-    }) => current_task = task);
+    function getRunningTaskName() {
+        return Object.keys(gulp.tasks)
+            .filter(n => gulp.tasks[n].running)
+            .map(n => gulp.tasks[n].name)[0];
+    }
 
-    function createWorkerPromise(fileStream) {
+    function createWorkerPromise(currentTask, fileStream) {
 
         cluster.setupMaster({
-            args: [ '--silent', current_task]
+            args: ['--silent', currentTask]
         });
 
         const worker = cluster.fork();
-        util.log('spawned ' + `worker #${worker.id}`.dim.red + ' with task ' + current_task);
+        util.log('spawned ' + `worker #${worker.id}`.dim.red + ' with task ' + currentTask);
 
         const label = worker => '[' + `worker ${worker.id}`.red + ']: ';
 
@@ -68,17 +69,19 @@ module.exports = function (gulp) {
         builder = typeof opts === 'function' ? opts : builder;
         opts = typeof opts === 'function' ? {} : opts;
 
+        const taskName = getRunningTaskName();
+
         if (cluster.isMaster) {
             const fileStream = gs.create(glob, opts);
             const workerCount = +(opts.concurrency || os.cpus().length);
 
             const promises = [];
             for (let i = 0; i < workerCount; ++i)
-                promises.push(createWorkerPromise.call(this, fileStream));
+                promises.push(createWorkerPromise.call(this, taskName, fileStream));
 
             return Promise.all(promises);
         } else {
-            sendLog(`Task '${current_task.cyan}' STARTING`);
+            sendLog(`Task '${taskName.cyan}' STARTING`);
 
             const fileStream = through.obj();
 
@@ -91,7 +94,7 @@ module.exports = function (gulp) {
                 },
                 end() {
                     fileStream.push(null); // We done
-                    sendLog(`Task '${current_task.cyan}' DONE`);
+                    sendLog(`Task '${taskName.cyan}' DONE`);
                     cluster.worker.disconnect();
                 }
             }
