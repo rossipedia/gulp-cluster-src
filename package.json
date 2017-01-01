@@ -5,6 +5,7 @@
   "main": "index.js",
   "author": "Bryan Ross <git@rossipedia.com>",
   "license": "MIT",
+  "repository": "rossipedia/gulp-cluster-src",
   "engines": {
     "node": ">=6"
   },
