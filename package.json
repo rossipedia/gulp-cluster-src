@@ -19,6 +19,7 @@
     "gulp": "^3.9.1",
     "gulp-debug": "^3.0.0",
     "gulp-util": "^3.0.8",
+    "minimist": "^1.2.0",
     "readable-stream": "^2.2.2",
     "through2": "^2.0.3",
     "vinyl": "^2.0.1"
