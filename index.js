@@ -289,8 +289,19 @@ module.exports = function (gulp) {
     /**
      * Expose this for custom pipelines
      */
-    clusterSrc.log = sendLog;
-    clusterSrc.raw = sendRaw;
+    clusterSrc.log = (msg) => {
+        if (cluster.isWorker)
+            sendLog(msg);
+        else
+            util.log(msg);
+    }
+
+    clusterSrc.raw = (msg) => {
+        if (cluster.isWorker)
+            sendRaw(msg);
+        else
+            console.log(msg);
+    };
 
     return clusterSrc;
 };
