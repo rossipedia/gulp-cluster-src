@@ -30,24 +30,58 @@ function getWorkerArgs() {
             args.push(argv[k]);
         }
     }
+
+    return args;
 }
 
 /**
  * IPC function helpers
  */
 function sendLog(message) {
+    if (cluster.isMaster) {
+        throw new Error(
+            'sendLog() cannot be called from master process.'
+        );
+    }
+
     process.send({
         type: 'log',
         message
     });
 }
+
+function sendRaw(message) {
+    if (cluster.isMaster) {
+        throw new Error(
+            'sendRaw() cannot be called from master process.'
+        );
+    }
+
+    process.send({
+        type: 'raw',
+        message
+    });
+}
+
 function requestFile() {
+    if (cluster.isMaster) {
+        throw new Error(
+            'requestFile() cannot be called from master process.'
+        );
+    }
+
     process.send({
         type: 'getfile'
     });
 }
 
 function sendFile(worker, file) {
+    if (cluster.isWorker) {
+        throw new Error(
+            'sendFile() cannot be called from worker process.'
+        );
+    }
+
     worker.send({
         type: 'file',
         file
@@ -55,6 +89,12 @@ function sendFile(worker, file) {
 }
 
 function sendDone(worker) {
+    if (cluster.isWorker) {
+        throw new Error(
+            'sendDone() cannot be called from worker process.'
+        );
+    }
+
     worker.send({
         type: 'end'
     });
@@ -64,21 +104,21 @@ function sendDone(worker) {
  * Fork our gulpfile and kick off the task.
  * Returns a Promise that resolves when the process ends.
  */
-function createWorker(worker, task, args, handlers) {
+function createWorker(task, args, handlers) {
     cluster.setupMaster({
-        args: [...args, '--silent', task]
+        args: [task, ...args, '--silent']
     });
 
     const worker = cluster.fork();
-    util.log(
+    /*util.log(
         'spawned ' +
         `worker #${worker.id}`.dim.red +
         ' with task ' +
         task
-    );
+    );*/
 
     worker.on('message', message => {
-        handlers[message.type].call(worker, message)
+        handlers[message.type](worker, message)
     });
 
     return new Promise(function (resolve, reject) {
@@ -108,14 +148,24 @@ function spawnWorkers(taskName, workerCount, fileStream) {
                 '[' + `worker ${worker.id}`.red + ']: ' +
                 msg.message
             );
+        },
+
+        raw(worker, msg) {
+            console.log(msg.message);
         }
     }
+
+    const workerArgs = getWorkerArgs();
+    util.log(
+        `spawning ${workerCount.toString().yellow} worker ` +
+        `processes for task ${taskName.cyan }`
+    );
 
     const promises = [];
     for (let i = 0; i < workerCount; ++i) {
         promises.push(createWorker(
             taskName,
-            getWorkerArgs(),
+            workerArgs,
             handlers
         ));
     }
@@ -138,7 +188,7 @@ function createWorkerFilestream(taskName) {
         },
         end() {
             fileStream.push(null); // We done
-            sendLog(`Task '${taskName.cyan}' DONE`);
+            //sendLog(`Task '${taskName.cyan}' DONE`);
             cluster.worker.disconnect();
         }
     }
@@ -192,7 +242,9 @@ module.exports = function (gulp) {
             */
             const task = gulp.tasks[argv._];
             task.dep = []; // No dependencies
-            gulp.tasks = { [argv._]: task }; // only a single task
+            gulp.tasks = {
+                [argv._]: task
+            }; // only a single task
             gulp.seq = [argv._]; // only this task is queued
         });
     }
@@ -211,7 +263,7 @@ module.exports = function (gulp) {
             const fileStream = gs.create(glob, opts);
             return spawnWorkers(taskName, workerCount, fileStream);
         } else {
-            sendLog(`Task '${taskName.cyan}' STARTING`);
+            //sendLog(`Task '${taskName.cyan}' STARTING`);
             return setupChildPipeline(taskName, builder);
         }
     };
@@ -221,15 +273,24 @@ module.exports = function (gulp) {
      * Child processes are invoked with --silent, so they can't output things
      * directly.
      */
-    clusterSrc.logfiles = through.obj((file, enc, done) => {
-        sendLog(file.path);
-        done(null, file);
-    });
+    clusterSrc.logfiles = () => {
+        if (cluster.isMaster) {
+            throw new Error(
+                'logfiles() cannot be called from the master process'
+            );
+        }
+
+        return through.obj((file, enc, done) => {
+            sendLog(file.path);
+            done(null, file);
+        });
+    }
 
     /**
      * Expose this for custom pipelines
      */
     clusterSrc.log = sendLog;
+    clusterSrc.raw = sendRaw;
 
     return clusterSrc;
 };
