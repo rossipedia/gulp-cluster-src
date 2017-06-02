@@ -256,7 +256,7 @@ module.exports = function (gulp) {
         builder = typeof opts === 'function' ? opts : builder;
         opts = typeof opts === 'function' ? {} : opts;
 
-        const taskName = getRunningTaskName();
+        const taskName = opts.taskName || getRunningTaskName();
 
         if (cluster.isMaster) {
             const workerCount = +(opts.concurrency || os.cpus().length);
