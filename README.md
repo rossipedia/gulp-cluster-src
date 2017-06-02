@@ -71,6 +71,10 @@ The max number of child processes to spawn. The default is
 This is a _maximum_ limit. While you _can_ specify a number greater than the
 number of processors in your machine, you won't really see any benefit. Also,
 
+#### `taskName`
+
+We automatically try to get the currently running task name, but this can be hard to do with certain gulp setups. In that case, use this parameter to set the task name.
+
 ### Additional methods
 
 #### `clusterSrc.logfiles()`
