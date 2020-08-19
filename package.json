@@ -7,24 +7,22 @@
   "license": "MIT",
   "repository": "rossipedia/gulp-cluster-src",
   "engines": {
-    "node": ">=6"
+    "node": ">=8"
   },
   "keywords": [
     "gulpfriendly",
     "cluster"
   ],
   "dependencies": {
-    "colors": "^1.1.2",
-    "glob-stream": "^5.3.5",
-    "gulp": "^3.9.1",
-    "gulp-debug": "^3.0.0",
-    "gulp-util": "^3.0.8",
-    "minimatch": "^3.0.3",
-    "minimist": "^1.2.0",
-    "through2": "^2.0.3",
-    "vinyl": "^2.0.1"
+    "colors": "^1.4.0",
+    "glob-stream": "^6.1.0",
+    "fancy-log": "^1.3.3",
+    "minimatch": "^3.0.4",
+    "minimist": "^1.2.5",
+    "through2": "^4.0.2",
+    "vinyl": "^2.2.0"
   },
   "devDependencies": {
-    "eslint": "^3.12.2"
+    "eslint": "^4.11.0"
   }
 }
