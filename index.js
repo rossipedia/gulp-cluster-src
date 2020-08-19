@@ -101,6 +101,19 @@ function sendDone(worker) {
     });
 }
 
+function sendError(worker, e) {
+    if (cluster.isMaster) {
+        throw new Error(
+            'sendError() cannot be called from master process.'
+        );
+    }
+
+    process.send({
+        type: 'error',
+        message: e
+    });
+}
+
 /**
  * Fork our gulpfile and kick off the task.
  * Returns a Promise that resolves when the process ends.
@@ -156,10 +169,7 @@ function spawnWorkers(taskName, workerCount, fileStream) {
         },
 
         error(worker, msg) {
-            if (cluster.isMaster)
-            {
-                throw new Error(msg.message.error.message);
-            }
+            throw new Error(msg.message.error.message);
         }
     }
 
@@ -252,10 +262,7 @@ module.exports = function (gulp) {
 
         gulp.on('error', (e) =>
         {
-            cluster.worker.send({
-                type: 'error',
-                message: e
-            })
+            sendError(cluster.worker, e)
         })
     }
 
