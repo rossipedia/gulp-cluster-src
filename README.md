@@ -1,3 +1,5 @@
+[![npm version](https://badge.fury.io/js/gulp-cluster-src.svg)](https://badge.fury.io/js/gulp-cluster-src)
+
 # Gulp Clustered File Source
 
 Process files in parallel using node's `cluster` module.
