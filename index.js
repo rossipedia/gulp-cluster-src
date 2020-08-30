@@ -1,11 +1,12 @@
+const Vinyl = require('vinyl');
+const assert = require('assert');
 const cluster = require('cluster');
-const File = require('vinyl');
-const gs = require('glob-stream');
 const fs = require('fs');
-const through = require('through2');
-const util = require('gulp-util');
-const os = require('os');
+const globStream = require('glob-stream');
+const log = require('fancy-log');
 const minimist = require('minimist');
+const os = require('os');
+const through2 = require('through2');
 
 require('colors');
 
@@ -100,6 +101,19 @@ function sendDone(worker) {
     });
 }
 
+function sendError(worker, e) {
+    if (cluster.isMaster) {
+        throw new Error(
+            'sendError() cannot be called from master process.'
+        );
+    }
+
+    process.send({
+        type: 'error',
+        message: e
+    });
+}
+
 /**
  * Fork our gulpfile and kick off the task.
  * Returns a Promise that resolves when the process ends.
@@ -110,7 +124,7 @@ function createWorker(task, args, handlers) {
     });
 
     const worker = cluster.fork();
-    /*util.log(
+    /*log(
         'spawned ' +
         `worker #${worker.id}`.dim.red +
         ' with task ' +
@@ -144,7 +158,7 @@ function spawnWorkers(taskName, workerCount, fileStream) {
         },
 
         log(worker, msg) {
-            util.log(
+            log(
                 '[' + `worker ${worker.id}`.red + ']: ' +
                 msg.message
             );
@@ -152,11 +166,15 @@ function spawnWorkers(taskName, workerCount, fileStream) {
 
         raw(worker, msg) {
             console.log(msg.message);
+        },
+
+        error(worker, msg) {
+            throw new Error(msg.message.error.message);
         }
     }
 
     const workerArgs = getWorkerArgs();
-    util.log(
+    log(
         `spawning ${workerCount.toString().yellow} worker ` +
         `processes for task ${taskName.cyan }`
     );
@@ -178,13 +196,13 @@ function spawnWorkers(taskName, workerCount, fileStream) {
  * We read the file's contents in here, because sending file contents over the
  * IPC channel would be really dumb.
  */
-function createWorkerFilestream(taskName) {
-    const fileStream = through.obj();
+function createWorkerFilestream() {
+    const fileStream = through2.obj();
     const messageHandlers = {
         file(msg) {
             const file = msg.file;
             file.contents = fs.readFileSync(file.path);
-            fileStream.push(new File(file));
+            fileStream.push(new Vinyl(file));
         },
         end() {
             fileStream.push(null); // We done
@@ -205,7 +223,7 @@ function setupChildPipeline(taskName, builder) {
         We tack this on at the tail end so that whenever we'red
         done with a file, we request a new one from the parent process.
         */
-        .pipe(through.obj((file, enc, done) => {
+        .pipe(through2.obj((file, enc, done) => {
             requestFile();
             done();
         }));
@@ -216,21 +234,10 @@ function setupChildPipeline(taskName, builder) {
 }
 
 module.exports = function (gulp) {
-
-    /**
-     * Get the running task name by checking each task registered in
-     * gulp.tasks for the `running` property.
-     */
-    function getRunningTaskName() {
-        return Object.keys(gulp.tasks)
-            .filter(n => gulp.tasks[n].running)
-            .map(n => gulp.tasks[n].name)[0];
-    }
-
     if (cluster.isWorker) {
-        gulp.on('start', function () {
+        gulp.on('start', () => {
             /*
-            We have to hack up gulp's (really Orchestrator's) dependency and
+            We have to override Gulp's (really Undertaker's) dependency and
             task tree in the child process to make it appear as though the
             task we want to run in parallel is the *only* task in the gulpfile.
             Since the task dependencies have already been processed in the
@@ -240,33 +247,44 @@ module.exports = function (gulp) {
             This is probably *completely* unsupported and will likely break
             in the future.
             */
-            const task = gulp.tasks[argv._];
-            task.dep = []; // No dependencies
-            gulp.tasks = {
-                [argv._]: task
-            }; // only a single task
-            gulp.seq = [argv._]; // only this task is queued
+            const [workerTaskName] = argv._;
+            const { constructor: DefaultRegistry } = Object.getPrototypeOf(gulp.registry());
+            const registry = new class extends DefaultRegistry {
+                set(taskName, task) {
+                    if (taskName === workerTaskName) {
+                        return super.set(taskName, task);
+                    }
+                }
+            };
+
+            gulp.registry(registry);
         });
+
+        gulp.on('error', (e) =>
+        {
+            sendError(cluster.worker, e)
+        })
     }
 
     /**
      * The main attraction
      */
-    function clusterSrc(glob, opts, builder) {
+    function clusterSrc(globs, opts, builder) {
         builder = typeof opts === 'function' ? opts : builder;
         opts = typeof opts === 'function' ? {} : opts;
 
-        const taskName = opts.taskName || getRunningTaskName();
+        assert(typeof opts.taskName === 'string', 'opts.taskName is not a string');
 
+        const { taskName } = opts;
         if (cluster.isMaster) {
             const workerCount = +(opts.concurrency || os.cpus().length);
-            const fileStream = gs.create(glob, opts);
+            const fileStream = globStream(globs, opts);
             return spawnWorkers(taskName, workerCount, fileStream);
         } else {
             //sendLog(`Task '${taskName.cyan}' STARTING`);
             return setupChildPipeline(taskName, builder);
         }
-    };
+    }
 
     /**
      * Convenience plugin to list processed files out from parent process.
@@ -280,7 +298,7 @@ module.exports = function (gulp) {
             );
         }
 
-        return through.obj((file, enc, done) => {
+        return through2.obj((file, enc, done) => {
             sendLog(file.path);
             done(null, file);
         });
@@ -293,7 +311,7 @@ module.exports = function (gulp) {
         if (cluster.isWorker)
             sendLog(msg);
         else
-            util.log(msg);
+            log(msg);
     }
 
     clusterSrc.raw = (msg) => {
